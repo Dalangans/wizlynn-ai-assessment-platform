@@ -1,0 +1,3 @@
+# Checkpoint 2 - Progress Update
+
+I've completed the technical design and built the initial FastAPI-based MVP structure. The current demo can load source material, send it to the backend, and display fallback knowledge points and draft questions for the review flow. I've started integrating Anthropic API through environment variables, but the backend connection isn't working correctly because the Claude model configuration needs to be confirmed. I'm still debugging the AI connection.

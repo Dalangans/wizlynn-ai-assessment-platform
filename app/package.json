@@ -1,0 +1,10 @@
+{
+  "name": "wizlynn-assessment-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FastAPI-based MVP for AI-powered business knowledge assessment.",
+  "scripts": {
+    "dev": "uvicorn main:app --reload",
+    "start": "uvicorn main:app --host 127.0.0.1 --port 8000"
+  }
+}
