@@ -94,6 +94,48 @@ def normalize_questions(payload):
     return normalized
 
 
+def normalize_source_summary(payload, source_text: str):
+    if isinstance(payload, list):
+        if payload and isinstance(payload[0], dict):
+            payload = payload[0]
+        else:
+            payload = {
+                "summary": " ".join(str(item) for item in payload[:6]),
+                "mainTopics": [str(item) for item in payload[:10]],
+                "recommendedAssessmentFocus": "Use the summarized source material to assess the employee's understanding.",
+                "assessmentSourceText": " ".join(str(item) for item in payload),
+            }
+
+    if not isinstance(payload, dict):
+        payload = {
+            "summary": str(payload),
+            "mainTopics": [],
+            "recommendedAssessmentFocus": "Use the summarized source material to assess the employee's understanding.",
+            "assessmentSourceText": str(payload),
+        }
+
+    topics = payload.get("mainTopics") or payload.get("main_topics") or []
+    if isinstance(topics, list):
+        topics_text = ", ".join(str(item) for item in topics)
+    else:
+        topics_text = str(topics)
+
+    summary = payload.get("summary") or payload.get("documentSummary") or ""
+    assessment_focus = (
+        payload.get("recommendedAssessmentFocus")
+        or payload.get("recommended_assessment_focus")
+        or "Use the summarized source material to assess the employee's understanding."
+    )
+    assessment_source_text = (
+        payload.get("assessmentSourceText")
+        or payload.get("assessment_source_text")
+        or summary
+        or source_text[:4000]
+    )
+
+    return summary, topics_text, assessment_focus, assessment_source_text
+
+
 async def call_json_ai(prompt: str):
     ai_text = await call_anthropic(prompt)
     try:
@@ -143,7 +185,7 @@ def extract_text_from_file(filename: str, content: bytes) -> str:
     if lower_name.endswith(".pdf"):
         reader = PdfReader(BytesIO(content))
         pages = []
-        for page in reader.pages[:20]:
+        for page in reader.pages:
             pages.append(page.extract_text() or "")
         text = "\n".join(pages).strip()
         if not text:
@@ -156,33 +198,27 @@ def extract_text_from_file(filename: str, content: bytes) -> str:
     return content.decode("utf-8", errors="ignore").strip()
 
 
-async def summarize_source_text(source_text: str) -> tuple[str, str, str]:
+async def summarize_source_text(source_text: str) -> tuple[str, str, str, str]:
     prompt = f"""
 Summarize this business source material for an assessment manager.
 Return JSON only with exactly these fields:
-summary, mainTopics, recommendedAssessmentFocus.
+summary, mainTopics, recommendedAssessmentFocus, assessmentSourceText.
 
 Rules:
-- summary must be 2-3 sentences
-- mainTopics must be an array of short strings
+- summary must be 4-6 sentences
+- mainTopics must be an array of 5-10 short strings
 - recommendedAssessmentFocus must be one sentence
+- assessmentSourceText must be a concise but complete source text for downstream knowledge extraction
+- assessmentSourceText must cover the whole uploaded material, not only the beginning
+- assessmentSourceText should be 800-1500 words when possible
 - do not include markdown
 
 SOURCE MATERIAL:
-{source_text[:12000]}
+{source_text[:50000]}
 """
     ai_text = await call_anthropic(prompt)
     result = extract_json(ai_text)
-    topics = result.get("mainTopics", [])
-    if isinstance(topics, list):
-        topics_text = ", ".join(str(item) for item in topics)
-    else:
-        topics_text = str(topics)
-    return (
-        result.get("summary", ""),
-        topics_text,
-        result.get("recommendedAssessmentFocus", ""),
-    )
+    return normalize_source_summary(result, source_text)
 
 
 async def score_open_ended_answer(question: dict, answer: str, knowledge_point: dict | None):
@@ -282,13 +318,14 @@ async def upload_source_file(file: UploadFile = File(...)):
         text = text[:30000]
 
     try:
-        summary, main_topics, assessment_focus = await summarize_source_text(text)
+        summary, main_topics, assessment_focus, assessment_source_text = await summarize_source_text(text)
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"AI source summary failed: {error}")
 
     return {
         "filename": file.filename,
         "text": text,
+        "assessmentSourceText": assessment_source_text,
         "summary": summary,
         "mainTopics": main_topics,
         "recommendedAssessmentFocus": assessment_focus,

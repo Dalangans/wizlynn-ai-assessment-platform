@@ -210,7 +210,7 @@
         <div id="sourceSummary" class="mode-note">
           No file uploaded yet. You can paste source text manually or upload a source file.
         </div>
-        <label for="sourceText">Extracted or pasted source text</label>
+        <label for="sourceText">AI-summarized source text for knowledge extraction</label>
         <textarea id="sourceText">Wizlynn provides sales enablement material to help teams understand product value, customer scenarios, and delivery workflows. New employees need to learn key business concepts before working with customers. Pre-sales teams need to explain how product capabilities solve customer problems.</textarea>
         <button id="extractBtn">Extract Knowledge Points</button>
         <p id="status" class="status">Ready.</p>
@@ -693,13 +693,14 @@
         $("#status").textContent = "Reading source file and generating summary...";
         try {
           const data = await uploadSourceFile(file);
-          $("#sourceText").value = data.text || "";
+          $("#sourceText").value = data.assessmentSourceText || data.summary || data.text || "";
           $("#sourceSummary").innerHTML = `
             <p><strong>Uploaded file:</strong> ${esc(data.filename)}</p>
             <p><strong>Summary:</strong> ${esc(data.summary)}</p>
             <p><strong>Main topics:</strong> ${esc(data.mainTopics)}</p>
             <p><strong>Recommended assessment focus:</strong> ${esc(data.recommendedAssessmentFocus)}</p>
             <p><strong>Extracted characters:</strong> ${esc(data.characterCount)}</p>
+            <p><strong>Source text used for extraction:</strong> AI summary of the whole uploaded material.</p>
           `;
           state.knowledgePoints = [];
           state.questions = [];
